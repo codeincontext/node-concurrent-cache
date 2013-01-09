@@ -39,8 +39,16 @@ Bucket.prototype.cache = function(keyData, load, callback) {
   });
 };
 
-Bucket.prototype.invalidate = function() {
-  
+Bucket.prototype.exists = function(keyData, callback) {
+  var key = this.buildKey(keyData);
+  this.client.exists(key, function(err, exists) {
+    callback(err, !!exists);
+  });
+};
+
+Bucket.prototype.invalidate = function(keyData, callback) {
+  var key = this.buildKey(keyData);
+  this.client.del(key, callback);
 };
 
 Bucket.prototype.buildKey = function(keyData) {
