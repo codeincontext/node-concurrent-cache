@@ -1,18 +1,28 @@
-// Setup:
-    var concurrentCache = require('concurrent-cache');
-    
-    concurrentCache.configure({
-      ttl: 60 // Recommended: Time-to-live for keys (seconds)
-      prefix: 'my-project' // Recommended: Redis namespace to avoid conflicts. Usually the project name
-      redisClient: redisClient // Optional: Redis client to use
+node-concurrent-cache
+============
+
+Our existing caching mechanism only let us retrieve a page from the cache after the first request had generated it. A spike in traffic to an uncached URL would result in high load as each request is processed simultaneously. (In our use case, this could happen fairly regularly).
+
+node-concurrent-cache has an awareness of the requests already in progress. If 100 requests hit the same page at the same time, only the first will render, with the others bound to return when it has finished.
+
+## Usage
+
+```js
+  var concurrentCache = require('concurrent-cache');
+  
+  var bucket = concurrentCache.bucket({
+      name:   // The name of the bucket. If not provided, will default to the global bucket. This is important (see below)
+      ttl:    // Time to live for keys in seconds. Default: 60
+      client: // An (optional) instance of redisClient
     });
+  
+  // keyData: array/string of properties uniquely identifying this item in the bucket
+  // loadFunction: function(done) called if data doesn't exist in cache. Call done() with the data
+  bucket.cache(keyData, loadFunction, function(err, data) {
+    console.log(data);
+  });
+```
 
-// API:
+## Buckets
 
-    // Cache in a bucket or the global space. ttl is optional (set default in config)
-    cache = concurrentCache.bucket(bucketname, ttl); // or .global()
-    
-    // keyData: array/string of properties uniquely identifying this data
-    // loadData: function called if data doesn't exist in cache
-    // callback: function(err, data) called once data is retrieved
-    cache(keyData, loadData, callback);
+Cached items are grouped into buckets, with the bucket name is used behind the scenes in Redis. How you organise buckets is at your discretion. It could simply be the name of your project, or you could use a more complicated scheme. Naming a bucket photos:1234 would allow you to group keys for photo 1234 - which you could then expire when photo 1234 changes.
