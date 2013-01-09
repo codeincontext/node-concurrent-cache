@@ -32,7 +32,7 @@ Bucket.prototype.cache = function(keyData, load, callback) {
           return;
         }
 
-        that.client.set(key, data);
+        that.client.setex(key, that.ttl, data);
         callback(null, data);
       });
     }

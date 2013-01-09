@@ -45,7 +45,19 @@ describe("concurrent-cache", function() {
     });
   });
 
-  it("should call load again if the ttl has passed");
+  it("should call load again if the ttl has passed", function(done) {
+    var bucket = concurrentCache.createBucket({ client: client, ttl: 1 });
+    bucket.cache(['foo',1,true], loadFunction, function(err, data) {
+     setTimeout(function() {
+        bucket.cache(['foo',1,true], loadFunction, function(err, data) {
+          assert.equal(data, 'Loaded: 2');
+          assert.equal(counter, 2);
+          done();
+        });
+      }, 1100);
+    });
+  });
+
   it("should use the redisclient provided, or create one ");
   it("should allow key invalidation");
   it("should not call load if another load for the same key is in progress");
