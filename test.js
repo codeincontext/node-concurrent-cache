@@ -4,18 +4,51 @@ var assert = require('assert')
   , client = redis.createClient();
 
 describe("concurrent-cache", function() {
-  counter = 0;
-  function loadFunction(err, done) {
+  function loadFunction(done) {
     counter++;
-    done('Loaded: '+counter);
+    done(null, 'Loaded: '+counter);
   }
+
+  var counter;
+  beforeEach(function(){
+    counter = 0;
+    redis.storage = {};
+  });
   
-  it("should call load and then callback for the first request");
-  it("if it should call load and run if it isn't cached");
-  it("it should recall from cache if it's in the cache");
-  it("it should use the redisclient provided, or create one ");
-  it("it should allow key invalidation");
-  it("it should not call load if another load for the same key is in progress");
-  it("it should trigger waiting requests when one loads");
-  it("it should handle errors in the load function");
+  it("should call load and then callback with the loaded data", function(done) {
+    var bucket = concurrentCache.createBucket({ client: client });
+    bucket.cache(['foo',1,true], loadFunction, function(err, data) {
+      assert.equal(data, 'Loaded: 1');
+      done();
+    });
+  });
+
+  it("should recall from cache if it's in the cache", function(done) {
+    var bucket = concurrentCache.createBucket({ client: client });
+    bucket.cache(['foo',1,true], loadFunction, function(err, data) {
+      bucket.cache(['foo',1,true], loadFunction, function(err, data) {
+        assert.equal(data, 'Loaded: 1');
+        assert.equal(counter, 1);
+        done();
+      });
+    });
+  });
+
+  it("should isolate caching requests with differing key data", function(done) {
+    var bucket = concurrentCache.createBucket({ client: client });
+    bucket.cache(['foo',1,true], loadFunction, function(err, data) {
+      bucket.cache(['foo',7,false], loadFunction, function(err, data) {
+        assert.equal(data, 'Loaded: 2');
+        assert.equal(counter, 2);
+        done();
+      });
+    });
+  });
+
+  it("should call load again if the ttl has passed");
+  it("should use the redisclient provided, or create one ");
+  it("should allow key invalidation");
+  it("should not call load if another load for the same key is in progress");
+  it("should trigger waiting requests when one loads");
+  it("should handle errors in the load function");
 });
