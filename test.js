@@ -1,18 +1,23 @@
 var assert = require('assert')
   , concurrentCache = require('./concurrent-cache')
   , redis = require("redis-mock")
-  , client = redis.createClient();
+  , client = null;
 
 describe("concurrent-cache", function() {
   function loadFunction(done) {
     counter++;
     done(null, 'Loaded: '+counter);
   }
+  function neverCalled() {
+    done('neverCalled was called');
+  }
 
   var counter;
   beforeEach(function(){
     counter = 0;
+    client = redis.createClient();
     redis.storage = {};
+    redis.subscriptions = {};
   });
   
   it("should call load and then callback with the loaded data", function(done) {
@@ -26,7 +31,7 @@ describe("concurrent-cache", function() {
   it("should recall from cache if it's in the cache", function(done) {
     var bucket = concurrentCache.createBucket({ client: client });
     bucket.cache(['foo',1,true], loadFunction, function(err, data) {
-      bucket.cache(['foo',1,true], loadFunction, function(err, data) {
+      bucket.cache(['foo',1,true], neverCalled, function(err, data) {
         assert.equal(data, 'Loaded: 1');
         assert.equal(counter, 1);
         done();
@@ -99,7 +104,51 @@ describe("concurrent-cache", function() {
     });
   });
 
-  it("should not call load if another load for the same key is in progress");
-  it("should trigger waiting requests when one loads");
+  it("should not call load if another load for the same key is in progress", function(done) {
+    function longLoadFunction(done) {
+      setTimeout(function() {
+        loadFunction(done);
+      }, 1000);
+    }
+    function then() {
+      done();
+    }
+
+    var bucket = concurrentCache.createBucket({ client: client });
+    bucket.cache(['foo',1,true], longLoadFunction, done);
+
+    setTimeout(function() {
+      bucket.cache(['foo',1,true], neverCalled, function(){});
+      bucket.cache(['foo',1,true], neverCalled, function(){});
+    }, 1);
+  });
+
+  it("should trigger waiting requests when one loads", function(done) {
+    function longLoadFunction(done) {
+      setTimeout(function() {
+        loadFunction(done);
+      }, 1000);
+    }
+
+    var calledBackCount = 0;
+    function then(err, data) {
+      if (++calledBackCount == 3) {
+        assert.equal(data, 'Loaded: 1');
+        assert.equal(counter, 1);
+        done();
+      }
+    }
+
+    var bucket = concurrentCache.createBucket({ client: client });
+    bucket.cache(['foo',1,true], longLoadFunction, then);
+
+    setTimeout(function() {
+      bucket.cache(['foo',1,true], neverCalled, then);
+      bucket.cache(['foo',1,true], neverCalled, then);
+    }, 1);
+  });
+
+  it("should drop subscriptions when done");
+
   it("should handle errors in the load function");
 });
