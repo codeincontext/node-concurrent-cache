@@ -1,3 +1,5 @@
+*note: This isn't finished and is by no means production-ready*
+
 node-concurrent-cache
 ============
 
